@@ -17,35 +17,67 @@ public sealed class BatchRenderService
         string zipPath,
         CancellationToken cancellationToken = default)
     {
-        if (imagePaths.Count == 0 && inputRows.Any(row => string.IsNullOrWhiteSpace(row.ImagePath)))
-        {
-            throw new InvalidOperationException("No source images were selected.");
-        }
-
         if (inputRows.Count == 0)
         {
             throw new InvalidOperationException("Upload an input file with title|code rows.");
         }
 
-        var pairedCount = Math.Min(imagePaths.Count, inputRows.Count);
+        // When every row has its own image path, pairedCount = all rows.
+        // Otherwise pair with the folder image list.
+        var allRowsHaveOwnPath = inputRows.All(row => !string.IsNullOrWhiteSpace(row.ImagePath));
+        var pairedCount = allRowsHaveOwnPath ? inputRows.Count : Math.Min(imagePaths.Count, inputRows.Count);
+
+        if (pairedCount == 0)
+        {
+            throw new InvalidOperationException("No source images were selected.");
+        }
+
         var rows = NormalizeCodes(inputRows.Take(pairedCount));
 
         Directory.CreateDirectory(outputDirectory);
         var logPath = Path.Combine(outputDirectory, "pinsharp-run.log");
-        await File.AppendAllTextAsync(logPath, $"[{DateTimeOffset.Now:O}] Starting {pairedCount} pins with {options.ThreadCount} threads.{Environment.NewLine}", cancellationToken);
 
-        var items = Enumerable.Range(0, pairedCount)
-            .Select(index =>
+        // ── Supervisor pre-pass: validate every image path before rendering ──
+        var supervisorBad = new List<string>();
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var imgPath = !string.IsNullOrWhiteSpace(row.ImagePath) ? row.ImagePath : (i < imagePaths.Count ? imagePaths[i] : string.Empty);
+            if (string.IsNullOrWhiteSpace(imgPath) || !File.Exists(imgPath))
             {
-                var row = rows[index];
-                var imagePath = !string.IsNullOrWhiteSpace(row.ImagePath) ? row.ImagePath : imagePaths[index];
-                return new BatchRenderItem(imagePath, row.Title, row.Code, index);
+                supervisorBad.Add($"[SUPERVISOR] Row {i + 1} skipped – image not found: {imgPath}  (code={row.Code})");
+            }
+        }
+
+        if (supervisorBad.Count > 0)
+        {
+            await File.AppendAllLinesAsync(logPath, supervisorBad, cancellationToken);
+            Console.WriteLine($"[Supervisor] {supervisorBad.Count} rows skipped – image file not found (see log).");
+        }
+
+        // Build valid items only
+        var items = rows
+            .Select((row, index) =>
+            {
+                var imgPath = !string.IsNullOrWhiteSpace(row.ImagePath) ? row.ImagePath : (index < imagePaths.Count ? imagePaths[index] : string.Empty);
+                return (row, imgPath, index);
             })
+            .Where(x => !string.IsNullOrWhiteSpace(x.imgPath) && File.Exists(x.imgPath))
+            .Select(x => new BatchRenderItem(x.imgPath, x.row.Title, x.row.Code, x.index))
             .ToArray();
 
-        var results = new RenderedPinResult[items.Length];
+        var totalValid = items.Length;
+        await File.AppendAllTextAsync(logPath, $"[{DateTimeOffset.Now:O}] Starting {totalValid} pins ({supervisorBad.Count} skipped) with {options.ThreadCount} threads.{Environment.NewLine}", cancellationToken);
+
+        if (totalValid == 0)
+        {
+            throw new InvalidOperationException($"Supervisor rejected all {pairedCount} rows – no image files were found. Check paths in your input file and see pinsharp-run.log.");
+        }
+
+        var results = new RenderedPinResult[totalValid];
         var failures = new ConcurrentBag<string>();
         var completedCount = 0;
+
         await Parallel.ForEachAsync(items, new ParallelOptions
         {
             MaxDegreeOfParallelism = Math.Max(1, options.ThreadCount),
@@ -53,17 +85,19 @@ public sealed class BatchRenderService
         }, async (item, token) =>
         {
             token.ThrowIfCancellationRequested();
+            // Map item.Index → results array position
+            var resultIndex = Array.IndexOf(items, item);
             try
             {
                 var layout = SelectLayout(item);
                 var fileName = SafeFileName(item.Code) + "." + options.Format.ToLowerInvariant();
                 var outputPath = Path.Combine(outputDirectory, fileName);
                 await _renderer.RenderToFileAsync(item.ImagePath, item.Title, outputPath, options, layout, token);
-                results[item.Index] = new RenderedPinResult(item.Title, item.Code, fileName, fileName, layout.Kind);
+                results[resultIndex] = new RenderedPinResult(item.Title, item.Code, fileName, fileName, layout.Kind);
                 var current = Interlocked.Increment(ref completedCount);
-                var line = $"{current}/{pairedCount} completed {fileName}";
+                var line = $"{current}/{totalValid} completed {fileName}";
                 await File.AppendAllTextAsync(logPath, line + Environment.NewLine, token);
-                options.Progress?.Invoke(new BatchProgress(current, pairedCount, item.Code, fileName, true));
+                options.Progress?.Invoke(new BatchProgress(current, totalValid, item.Code, fileName, true));
             }
             catch (Exception ex)
             {
@@ -71,9 +105,9 @@ public sealed class BatchRenderService
                 failures.Add($"{item.Code}: {Path.GetFileName(item.ImagePath)} - {error}");
                 var current = Interlocked.Increment(ref completedCount);
                 var fileName = SafeFileName(item.Code) + "." + options.Format.ToLowerInvariant();
-                var line = $"{current}/{pairedCount} failed {fileName} - {error}";
+                var line = $"{current}/{totalValid} failed {fileName} - {error}";
                 await File.AppendAllTextAsync(logPath, line + Environment.NewLine, token);
-                options.Progress?.Invoke(new BatchProgress(current, pairedCount, item.Code, fileName, false, error));
+                options.Progress?.Invoke(new BatchProgress(current, totalValid, item.Code, fileName, false, error));
             }
         });
 
@@ -92,16 +126,12 @@ public sealed class BatchRenderService
         var zipName = string.Empty;
         if (options.CreateZip)
         {
-            if (File.Exists(zipPath))
-            {
-                File.Delete(zipPath);
-            }
-
+            if (File.Exists(zipPath)) File.Delete(zipPath);
             ZipFile.CreateFromDirectory(outputDirectory, zipPath);
             zipName = Path.GetFileName(zipPath);
         }
 
-        await File.AppendAllTextAsync(logPath, $"[{DateTimeOffset.Now:O}] Completed {completed.Length}/{pairedCount} pins. Failed: {failures.Count}.{Environment.NewLine}", cancellationToken);
+        await File.AppendAllTextAsync(logPath, $"[{DateTimeOffset.Now:O}] Completed {completed.Length}/{totalValid} pins. Failed: {failures.Count}. Skipped by supervisor: {supervisorBad.Count}.{Environment.NewLine}", cancellationToken);
 
         return new BatchRenderSummary(
             jobId,
