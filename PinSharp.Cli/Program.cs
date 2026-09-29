@@ -16,11 +16,6 @@ try
     var inputFile = NormalizePath(cli.InputFile);
     var fontFile = ResolveFontFile(cli.FontFolder, cli.FontName);
 
-    if (!Directory.Exists(imageFolder))
-    {
-        throw new DirectoryNotFoundException($"Image folder not found: {imageFolder}");
-    }
-
     if (!File.Exists(inputFile))
     {
         throw new FileNotFoundException($"Input file not found: {inputFile}");
@@ -33,7 +28,15 @@ try
         throw new InvalidOperationException("Input file has no valid rows. Expected format: product|imagetitle|code|filepath");
     }
 
-    var images = SelectImages(imageFolder, rows.Count);
+    // Use per-row image paths from column 4 when all rows have them;
+    // fall back to folder-based selection only for rows that don't.
+    var needsFolderImages = rows.Any(row => string.IsNullOrWhiteSpace(row.ImagePath));
+    if (needsFolderImages && !Directory.Exists(imageFolder))
+    {
+        throw new DirectoryNotFoundException($"Image folder not found: {imageFolder}  (required for rows without a filepath in column 4)");
+    }
+
+    var images = needsFolderImages ? SelectImages(imageFolder, rows.Count) : Array.Empty<string>();
     var jobId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..8];
     var outputFolder = Path.Combine(outputRoot, $"pinsharp-{jobId}");
     var zipPath = Path.Combine(outputRoot, $"pinsharp-{jobId}.zip");
