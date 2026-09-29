@@ -21,8 +21,8 @@ public static class TextBankParser
             if (parts.Length >= 4)
             {
                 // 4-column format: product|imagetitle|code|filepath
-                title     = parts[0].Trim();
-                // parts[1] is imagetitle — kept for reference but not used as render title
+                // imagetitle (col 2) is the text rendered on the pin
+                title     = parts[1].Trim();
                 code      = parts[2].Trim();
                 imagePath = parts[3].Trim();
             }
