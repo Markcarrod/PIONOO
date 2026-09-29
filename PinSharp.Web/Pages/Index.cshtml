@@ -1,0 +1,155 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "PinSharp Batch";
+}
+
+<section class="hero">
+    <div>
+        <p class="eyebrow">Linux-ready batch pin production</p>
+        <h1>PinSharp Web Studio</h1>
+        <p class="hero-copy">Read images directly from a Linux folder, pair them with one <code>title|code</code> file, and write the finished batch to your output folder.</p>
+    </div>
+    <div class="hero-card">
+        <div class="metric"><strong>@Environment.ProcessorCount</strong><span>CPU threads available</span></div>
+        <div class="metric"><strong>@Model.Sizes.Count</strong><span>canvas presets</span></div>
+        <div class="metric"><strong>8</strong><span>rotating layouts</span></div>
+    </div>
+</section>
+
+<section class="studio-grid">
+    <form method="post" enctype="multipart/form-data" class="control-panel">
+        <div class="panel-head">
+            <h2>Batch Setup</h2>
+            <p>Best for Linux RDP, VPS hosting, and remote browser control.</p>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert error">@Model.ErrorMessage</div>
+        }
+
+        <label class="field">
+            <span>Image folder</span>
+            <input asp-for="ImageFolder" type="text" placeholder="/home/kayan/images" autocomplete="off" />
+            <small>Linux path read directly by PinSharp. Images are not uploaded or copied.</small>
+        </label>
+
+        <label class="field">
+            <span>Output folder</span>
+            <input asp-for="OutputFolder" type="text" placeholder="/home/kayan/output" autocomplete="off" />
+            <small>Each batch gets its own timestamped folder and ZIP here.</small>
+        </label>
+
+        <label class="field">
+            <span>Font folder <em>optional</em></span>
+            <input asp-for="FontFolder" type="text" placeholder="/home/kayan/fonts" autocomplete="off" />
+            <small>Subfolders work, like <code>/home/kayan/fonts/Monse/monst.ttf</code>. You can also paste one exact font file here.</small>
+        </label>
+
+        <label class="field">
+            <span>Font name</span>
+            <input asp-for="FontName" type="text" placeholder="random or monst" autocomplete="off" />
+            <small>Use <code>random</code>, a partial font filename, or leave as automatic.</small>
+        </label>
+
+        <label class="field">
+            <span>input.txt</span>
+            <input asp-for="InputFile" type="file" accept=".txt" />
+            <small>Select <code>/home/kayan/Downloads/output4clean.txt</code>. One line per item: <code>Title goes here|CODE123</code></small>
+        </label>
+
+        <div class="row-grid">
+            <label class="field">
+                <span>Canvas</span>
+                <select asp-for="SizeId">
+                    @foreach (var size in Model.Sizes)
+                    {
+                        <option value="@size.Id">@size</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Format</span>
+                <select asp-for="Format">
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="row-grid">
+            <label class="field">
+                <span>JPG quality</span>
+                <input asp-for="JpegQuality" type="number" min="1" max="100" />
+            </label>
+
+            <label class="field">
+                <span>Threads</span>
+                <select asp-for="ThreadCount">
+                    @foreach (var thread in Model.ThreadOptions)
+                    {
+                        <option value="@thread">@thread</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        <label class="check-field">
+            <input asp-for="CreateZip" type="checkbox" />
+            <span>Create ZIP after render</span>
+            <small>Leave off for large batches. Images are always saved to the output folder.</small>
+        </label>
+
+        <button type="submit" class="primary-action">Run batch render</button>
+    </form>
+
+    <aside class="notes-panel">
+        <h2>What changed</h2>
+        <ul>
+            <li>Images are streamed from the Linux filesystem instead of uploaded through the browser.</li>
+            <li>Image folders are scanned recursively, but PinSharp stops as soon as it has enough images for the input.</li>
+            <li>Font folders are scanned recursively, so nested downloaded font packs work.</li>
+            <li>Parallel rendering is controlled directly from the page.</li>
+        </ul>
+    </aside>
+</section>
+
+@if (Model.Summary is not null)
+{
+    <section class="results">
+        <div class="results-head">
+            <div>
+                <p class="eyebrow">Batch complete</p>
+                <h2>@Model.Summary.RenderedCount pins rendered</h2>
+                <p>@Model.Summary.InputRows input rows, @Model.Summary.QueuedImages source images used, @Model.Summary.ThreadCount threads.</p>
+            </div>
+            <div class="output-locations">
+                <span>Images</span>
+                <code>@Model.CompletedOutputFolder</code>
+                <span>ZIP</span>
+                <code>@(Model.CompletedZipPath ?? "Skipped")</code>
+                <span>Log</span>
+                <code>@System.IO.Path.Combine(Model.CompletedOutputFolder ?? string.Empty, "pinsharp-run.log")</code>
+            </div>
+        </div>
+
+        <div class="result-grid">
+            @foreach (var item in Model.Summary.Outputs.Take(24))
+            {
+                <article class="result-card">
+                    <div class="result-meta">
+                        <strong>@item.Code</strong>
+                        <span>@item.Layout</span>
+                        <p>@item.Title</p>
+                    </div>
+                </article>
+            }
+        </div>
+        @if (Model.Summary.Outputs.Count > 24)
+        {
+            <p class="result-limit">Showing 24 of @Model.Summary.Outputs.Count results. All files were saved to the output folder.</p>
+        }
+    </section>
+}

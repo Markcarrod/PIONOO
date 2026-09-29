@@ -1,0 +1,6 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+PinSharp.Web/wwwroot/runs/

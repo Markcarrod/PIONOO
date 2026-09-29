@@ -1,0 +1,63 @@
+<Application x:Class="PinCreator.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="Ink" Color="#111920"/>
+        <SolidColorBrush x:Key="Panel" Color="#18232C"/>
+        <SolidColorBrush x:Key="PanelLift" Color="#202E38"/>
+        <SolidColorBrush x:Key="Paper" Color="#F4EBDD"/>
+        <SolidColorBrush x:Key="Muted" Color="#91A0AA"/>
+        <SolidColorBrush x:Key="Accent" Color="#F06B4F"/>
+        <SolidColorBrush x:Key="Gold" Color="#E6B84C"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="Foreground" Value="#F8F4EC"/>
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#111A21"/>
+            <Setter Property="Foreground" Value="#F7F1E8"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
+            <Setter Property="BorderBrush" Value="#34434E"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,9"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#111A21"/>
+            <Setter Property="Foreground" Value="#F7F1E8"/>
+            <Setter Property="BorderBrush" Value="#34434E"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="18,11"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Background" Value="#2A3944"/>
+            <Setter Property="Foreground" Value="#F5EFE6"/>
+        </Style>
+    </Application.Resources>
+</Application>
