@@ -17,7 +17,7 @@ public sealed class BatchRenderService
         string zipPath,
         CancellationToken cancellationToken = default)
     {
-        if (imagePaths.Count == 0)
+        if (imagePaths.Count == 0 && inputRows.Any(row => string.IsNullOrWhiteSpace(row.ImagePath)))
         {
             throw new InvalidOperationException("No source images were selected.");
         }
