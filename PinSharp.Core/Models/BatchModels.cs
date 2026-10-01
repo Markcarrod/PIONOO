@@ -26,6 +26,7 @@ public sealed record BatchRenderOptions(
     int JpegQuality,
     int ThreadCount,
     string? FontFilePath = null,
+    IReadOnlyList<string>? FontFiles = null,
     bool CreateZip = false,
     Action<BatchProgress>? Progress = null);
 

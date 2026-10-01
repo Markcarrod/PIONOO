@@ -90,9 +90,15 @@ public sealed class BatchRenderService
             try
             {
                 var layout = SelectLayout(item);
+                var fontPath = (options.FontFiles is { Count: > 0 } fonts)
+                    ? fonts[item.Index % fonts.Count]
+                    : options.FontFilePath;
+                var itemOptions = fontPath != options.FontFilePath
+                    ? options with { FontFilePath = fontPath }
+                    : options;
                 var fileName = SafeFileName(item.Code) + "." + options.Format.ToLowerInvariant();
                 var outputPath = Path.Combine(outputDirectory, fileName);
-                await _renderer.RenderToFileAsync(item.ImagePath, item.Title, outputPath, options, layout, token);
+                await _renderer.RenderToFileAsync(item.ImagePath, item.Title, outputPath, itemOptions, layout, token);
                 results[resultIndex] = new RenderedPinResult(item.Title, item.Code, fileName, fileName, layout.Kind);
                 var current = Interlocked.Increment(ref completedCount);
                 var line = $"{current}/{totalValid} completed {fileName}";

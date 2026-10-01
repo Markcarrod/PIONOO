@@ -14,7 +14,8 @@ try
     var imageFolder = NormalizePath(cli.ImageFolder);
     var outputRoot = NormalizePath(cli.OutputFolder);
     var inputFile = NormalizePath(cli.InputFile);
-    var fontFile = ResolveFontFile(cli.FontFolder, cli.FontName);
+    var fontFiles = ResolveFontCandidates(cli.FontFolder, cli.FontName);
+    var fontFile = fontFiles.Count == 1 ? fontFiles[0] : null;
 
     if (!File.Exists(inputFile))
     {
@@ -47,6 +48,7 @@ try
         Math.Clamp(cli.JpegQuality, 1, 100),
         Math.Max(1, cli.ThreadCount),
         fontFile,
+        fontFiles.Count > 1 ? fontFiles : null,
         cli.CreateZip,
         progress =>
         {
@@ -61,7 +63,7 @@ try
     Console.WriteLine($"Input rows: {rows.Count}");
     Console.WriteLine($"Image folder: {imageFolder}");
     Console.WriteLine($"Output folder: {outputFolder}");
-    Console.WriteLine($"Font: {fontFile ?? "auto"}");
+    Console.WriteLine($"Fonts: {fontFiles.Count} font(s) loaded from {cli.FontFolder}");
     Console.WriteLine($"Threads: {options.ThreadCount}");
     Console.WriteLine(cli.CreateZip ? "ZIP: on" : "ZIP: off");
     Console.WriteLine("Rendering...");
@@ -123,13 +125,13 @@ static IReadOnlyList<string> SelectImages(string folder, int requiredCount)
     return selected;
 }
 
-static string? ResolveFontFile(string fontFolder, string fontName)
+static IReadOnlyList<string> ResolveFontCandidates(string fontFolder, string fontName)
 {
     var candidates = new List<string>();
     var normalizedFolder = NormalizePath(fontFolder);
     if (File.Exists(normalizedFolder) && IsFontFile(normalizedFolder))
     {
-        return normalizedFolder;
+        return [normalizedFolder];
     }
 
     if (Directory.Exists(normalizedFolder))
@@ -143,25 +145,29 @@ static string? ResolveFontFile(string fontFolder, string fontName)
     candidates.AddRange(DefaultFontCandidates().Where(File.Exists));
     if (candidates.Count == 0)
     {
-        return null;
+        return [];
     }
 
     var requested = string.IsNullOrWhiteSpace(fontName) ? "random" : fontName.Trim();
     if (requested.Equals("random", StringComparison.OrdinalIgnoreCase))
     {
-        return candidates[Random.Shared.Next(candidates.Count)];
+        // Shuffle candidates so each batch run has randomized distribution
+        var rng = new Random();
+        return candidates.OrderBy(_ => rng.Next()).ToArray();
     }
 
     var direct = NormalizePath(requested);
     if (File.Exists(direct) && IsFontFile(direct))
     {
-        return direct;
+        return [direct];
     }
 
     var normalizedName = NormalizeSearchText(requested);
-    return candidates.FirstOrDefault(path =>
+    var matched = candidates.Where(path =>
         NormalizeSearchText(Path.GetFileNameWithoutExtension(path)).Contains(normalizedName, StringComparison.OrdinalIgnoreCase) ||
-        NormalizeSearchText(Path.GetDirectoryName(path) ?? string.Empty).Contains(normalizedName, StringComparison.OrdinalIgnoreCase));
+        NormalizeSearchText(Path.GetDirectoryName(path) ?? string.Empty).Contains(normalizedName, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+    return matched.Length > 0 ? matched : candidates;
 }
 
 static bool IsFontFile(string path)
@@ -229,7 +235,7 @@ Options:
   --output PATH      output folder
   --fonts PATH       font folder or exact font file
   --font NAME        random, partial font name, or exact font path
-  --threads N        worker count
+  --threads N        worker count (default: 250)
   --format png|jpg   output format (default: jpg)
   --quality N        JPG quality, 1-100 (default: 85)
   --size ID          pinterest-standard, pinterest-tall, portrait-social, square
@@ -283,9 +289,9 @@ internal sealed record CliOptions(
             values.GetValueOrDefault("input", "/home/kayan/Downloads/Allcookwaress.txt"),
             values.GetValueOrDefault("images", "/home/kayan/Downloads/Universal/"),
             values.GetValueOrDefault("output", "/home/kayan/Desktop/PINOUTPUTS/"),
-            values.GetValueOrDefault("fonts", "/home/kayan/Downloads/font/Fonts/"),
+            values.GetValueOrDefault("fonts", "/home/kayan/Downloads/Fonts/"),
             values.GetValueOrDefault("font", "random"),
-            int.TryParse(values.GetValueOrDefault("threads"), out var threads) ? threads : 100,
+            int.TryParse(values.GetValueOrDefault("threads"), out var threads) ? threads : 250,
             values.GetValueOrDefault("format", "jpg"),
             int.TryParse(values.GetValueOrDefault("quality"), out var quality) ? quality : 85,
             values.GetValueOrDefault("size", "pinterest-standard"),
