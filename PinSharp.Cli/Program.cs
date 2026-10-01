@@ -285,7 +285,7 @@ internal sealed record CliOptions(
             values.GetValueOrDefault("output", "/home/kayan/Desktop/PINOUTPUTS/"),
             values.GetValueOrDefault("fonts", "/home/kayan/Downloads/font/Fonts/"),
             values.GetValueOrDefault("font", "random"),
-            int.TryParse(values.GetValueOrDefault("threads"), out var threads) ? threads : 20,
+            int.TryParse(values.GetValueOrDefault("threads"), out var threads) ? threads : 100,
             values.GetValueOrDefault("format", "jpg"),
             int.TryParse(values.GetValueOrDefault("quality"), out var quality) ? quality : 85,
             values.GetValueOrDefault("size", "pinterest-standard"),
